@@ -1,3 +1,5 @@
+import { appendChildren, createElement } from "../lib/dom.js";
+
 function buildIllustration(item) {
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" role="img" aria-label="${item.image.alt}">
@@ -13,79 +15,90 @@ function buildIllustration(item) {
 }
 
 export function createCategoryNav(categories, activeCategory) {
-  return `
-    <nav class="category-nav" aria-label="Menu categories">
-      ${categories
-        .map(
-          (category) => `
-            <button
-              class="chip ${category.id === activeCategory ? "chip--active" : ""}"
-              type="button"
-              data-category="${category.id}"
-              aria-pressed="${String(category.id === activeCategory)}"
-            >
-              ${category.label}
-            </button>
-          `
-        )
-        .join("")}
-    </nav>
-  `;
+  const nav = createElement("nav", { className: "category-nav", attrs: { "aria-label": "Menu categories" } });
+
+  categories.forEach((category) => {
+    nav.append(
+      createElement("button", {
+        className: `chip ${category.id === activeCategory ? "chip--active" : ""}`.trim(),
+        attrs: {
+          type: "button",
+          "aria-pressed": String(category.id === activeCategory),
+        },
+        dataset: { category: category.id },
+        text: category.label,
+      })
+    );
+  });
+
+  return nav;
 }
 
 export function createMenuGrid(items, categoriesById, cart) {
   if (items.length === 0) {
-    return `
-      <div class="empty-state surface">
-        <h3>No items match these filters</h3>
-        <p>Try a broader search or switch back to all categories.</p>
-      </div>
-    `;
+    return createElement("div", { className: "empty-state surface" }, [
+      createElement("h3", { text: "No items match these filters" }),
+      createElement("p", { text: "Try a broader search or switch back to all categories." }),
+    ]);
   }
 
-  return `
-    <div class="menu-grid">
-      ${items
-        .map(
-          (item) => `
-            <article class="menu-card surface">
-              <img
-                class="menu-card__image"
-                loading="lazy"
-                width="320"
-                height="220"
-                src="${buildIllustration(item)}"
-                alt="${item.image.alt}"
-              />
-              <div class="menu-card__body">
-                <div class="menu-card__meta">
-                  <span class="pill">${categoriesById.get(item.category)?.label ?? item.category}</span>
-                  <span class="pill pill--muted">${item.diet === "veg" ? "Veg" : "Non-veg"}</span>
-                </div>
-                <div class="menu-card__heading">
-                  <h3>${item.name}</h3>
-                  <p class="price">AED ${item.price}${item.isPlaceholderPrice ? "*" : ""}</p>
-                </div>
-                <p class="menu-card__description">${item.description}</p>
-                <div class="menu-card__footer">
-                  <div class="stepper" aria-label="${item.name} quantity">
-                    <button type="button" data-quantity-action="decrease" data-item-id="${item.id}" aria-label="Decrease ${item.name}">
-                      −
-                    </button>
-                    <span>${cart[item.id] ?? 0}</span>
-                    <button type="button" data-quantity-action="increase" data-item-id="${item.id}" aria-label="Increase ${item.name}">
-                      +
-                    </button>
-                  </div>
-                  <button class="button button--primary button--small" type="button" data-add-item="${item.id}">
-                    Add to cart
-                  </button>
-                </div>
-              </div>
-            </article>
-          `
-        )
-        .join("")}
-    </div>
-  `;
+  const grid = createElement("div", { className: "menu-grid" });
+
+  items.forEach((item) => {
+    const quantity = cart[item.id] ?? 0;
+    const stepper = createElement("div", {
+      className: "stepper",
+      attrs: { "aria-label": `${item.name} quantity` },
+    });
+    appendChildren(stepper, [
+      createElement("button", {
+        attrs: { type: "button", "aria-label": `Decrease ${item.name}` },
+        dataset: { quantityAction: "decrease", itemId: item.id },
+        text: "−",
+      }),
+      createElement("span", { text: String(quantity) }),
+      createElement("button", {
+        attrs: { type: "button", "aria-label": `Increase ${item.name}` },
+        dataset: { quantityAction: "increase", itemId: item.id },
+        text: "+",
+      }),
+    ]);
+
+    const article = createElement("article", { className: "menu-card surface" }, [
+      createElement("img", {
+        className: "menu-card__image",
+        attrs: {
+          loading: "lazy",
+          width: "320",
+          height: "220",
+          src: buildIllustration(item),
+          alt: item.image.alt,
+        },
+      }),
+      createElement("div", { className: "menu-card__body" }, [
+        createElement("div", { className: "menu-card__meta" }, [
+          createElement("span", { className: "pill", text: categoriesById.get(item.category)?.label ?? item.category }),
+          createElement("span", { className: "pill pill--muted", text: item.diet === "veg" ? "Veg" : "Non-veg" }),
+        ]),
+        createElement("div", { className: "menu-card__heading" }, [
+          createElement("h3", { text: item.name }),
+          createElement("p", { className: "price", text: `AED ${item.price}${item.isPlaceholderPrice ? "*" : ""}` }),
+        ]),
+        createElement("p", { className: "menu-card__description", text: item.description }),
+        createElement("div", { className: "menu-card__footer" }, [
+          stepper,
+          createElement("button", {
+            className: "button button--primary button--small",
+            attrs: { type: "button" },
+            dataset: { addItem: item.id },
+            text: "Add to cart",
+          }),
+        ]),
+      ]),
+    ]);
+
+    grid.append(article);
+  });
+
+  return grid;
 }

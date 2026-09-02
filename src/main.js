@@ -4,6 +4,7 @@ import { createHero } from "./components/hero.js";
 import { createCategoryNav, createMenuGrid } from "./components/menu.js";
 import { categories, categoryBlurb, menuItems } from "./data/menu.js";
 import { addItem, getCartCount, getCartEntries, getSubtotal, setItemQuantity } from "./lib/cart.js";
+import { appendChildren, createElement } from "./lib/dom.js";
 import { filterMenuItems } from "./lib/filters.js";
 
 const app = document.querySelector("#app");
@@ -37,110 +38,93 @@ function render() {
   const activeCategory = state.filters.category;
 
   document.documentElement.setAttribute("dir", state.direction);
+  const pageShell = createElement("div", { className: "page-shell" });
+  const cartButton = createElement("button", {
+    className: "cart-pill",
+    attrs: { type: "button" },
+    props: {
+      onclick: () => {
+        document.querySelector("#cart-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      },
+    },
+  }, ["Cart ", createElement("span", { text: String(cartCount) })]);
 
-  app.innerHTML = `
-    <div class="page-shell">
-      <header class="site-header">
-        <div>
-          <p class="eyebrow">Original demo experience</p>
-          <h1 class="site-header__title">UAE delivery-style ordering</h1>
-        </div>
-        <button class="cart-pill" type="button" data-scroll-cart>
-          Cart <span>${cartCount}</span>
-        </button>
-      </header>
+  const header = createElement("header", { className: "site-header" }, [
+    createElement("div", {}, [
+      createElement("p", { className: "eyebrow", text: "Original demo experience" }),
+      createElement("h1", { className: "site-header__title", text: "UAE delivery-style ordering" }),
+    ]),
+    cartButton,
+  ]);
 
-      <main id="main-content" class="layout">
-        ${createHero({ direction: state.direction })}
+  const filterForm = buildFilterForm();
+  const categoryBlurbText =
+    activeCategory !== "all"
+      ? categoryBlurb[activeCategory] ?? ""
+      : "Browse across all categories to build a full meal, from breakfast starts to late-night desserts.";
 
-        <section class="surface filters-section" id="menu-section" aria-labelledby="menu-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Explore the menu</p>
-              <h2 id="menu-title">Build your order</h2>
-            </div>
-            <p class="section-heading__note">AED prices marked with * are placeholders for demo purposes.</p>
-          </div>
+  const menuSection = createElement("section", {
+    className: "surface filters-section",
+    attrs: { id: "menu-section", "aria-labelledby": "menu-title" },
+  }, [
+    createElement("div", { className: "section-heading" }, [
+      createElement("div", {}, [
+        createElement("p", { className: "eyebrow", text: "Explore the menu" }),
+        createElement("h2", { attrs: { id: "menu-title" }, text: "Build your order" }),
+      ]),
+      createElement("p", { className: "section-heading__note", text: "AED prices marked with * are placeholders for demo purposes." }),
+    ]),
+    filterForm,
+    createCategoryNav(categories, activeCategory),
+    createElement("p", { className: "category-blurb", text: categoryBlurbText }),
+    createMenuGrid(filteredItems, categoriesById, state.cart),
+  ]);
 
-          <form class="filters" data-filter-form>
-            <label class="filters__search">
-              <span class="visually-hidden">Search menu items</span>
-              <input
-                type="search"
-                name="query"
-                value="${escapeHtml(state.filters.query)}"
-                placeholder="Search burgers, coffee, nuggets..."
-              />
-            </label>
-            <label>
-              <span class="visually-hidden">Filter by category</span>
-              <select name="category">
-                ${categories
-                  .map(
-                    (category) =>
-                      `<option value="${category.id}" ${state.filters.category === category.id ? "selected" : ""}>${category.label}</option>`
-                  )
-                  .join("")}
-              </select>
-            </label>
-            <label>
-              <span class="visually-hidden">Filter by diet</span>
-              <select name="diet">
-                <option value="all" ${state.filters.diet === "all" ? "selected" : ""}>All diets</option>
-                <option value="veg" ${state.filters.diet === "veg" ? "selected" : ""}>Veg</option>
-                <option value="non-veg" ${state.filters.diet === "non-veg" ? "selected" : ""}>Non-veg</option>
-              </select>
-            </label>
-          </form>
+  const cartPanel = createElement("div", { attrs: { id: "cart-panel" } }, [
+    createCartDrawer(cartEntries, subtotal, cartCount, categoriesById),
+  ]);
 
-          ${createCategoryNav(categories, activeCategory)}
+  const detailGrid = createElement("div", { className: "detail-grid" }, [
+    cartPanel,
+    createCheckout({ cartEntries, subtotal, formState: state.form, orderPlaced: state.orderPlaced }),
+  ]);
 
-          ${
-            activeCategory !== "all"
-              ? `<p class="category-blurb">${categoryBlurb[activeCategory] ?? ""}</p>`
-              : `<p class="category-blurb">Browse across all categories to build a full meal, from breakfast starts to late-night desserts.</p>`
-          }
+  const main = createElement("main", { className: "layout", attrs: { id: "main-content" } }, [
+    createHero({
+      direction: state.direction,
+      onToggleDirection: () => {
+        state.direction = state.direction === "rtl" ? "ltr" : "rtl";
+        render();
+      },
+    }),
+    menuSection,
+    detailGrid,
+  ]);
 
-          ${createMenuGrid(filteredItems, categoriesById, state.cart)}
-        </section>
-
-        <div class="detail-grid">
-          <div id="cart-panel">
-            ${createCartDrawer(cartEntries, subtotal, cartCount, categoriesById)}
-          </div>
-          ${createCheckout({ cartEntries, subtotal, formState: state.form, orderPlaced: state.orderPlaced })}
-        </div>
-      </main>
-    </div>
-  `;
-
-  bindEvents();
+  appendChildren(pageShell, [header, main]);
+  app.replaceChildren(pageShell);
+  bindInteractiveHandlers();
 }
 
-function bindEvents() {
-  const filterForm = document.querySelector("[data-filter-form]");
-  filterForm?.addEventListener("input", handleFilterChange);
-  filterForm?.addEventListener("change", handleFilterChange);
-
+function bindInteractiveHandlers() {
+  document.querySelector("[data-filter-form]")?.addEventListener("input", handleFilterChange);
+  document.querySelector("[data-filter-form]")?.addEventListener("change", handleFilterChange);
   document.querySelector("[data-checkout-form]")?.addEventListener("submit", handleCheckoutSubmit);
-  document.querySelector("[data-scroll-cart]")?.addEventListener("click", () => {
-    document.querySelector("#cart-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-  document.querySelector("[data-action='toggle-dir']")?.addEventListener("click", () => {
-    state.direction = state.direction === "rtl" ? "ltr" : "rtl";
-    render();
-  });
 
   document.querySelectorAll("[data-category]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.filters.category = button.getAttribute("data-category");
+      state.filters.category = sanitizeCategory(button.dataset.category);
       render();
     });
   });
 
   document.querySelectorAll("[data-add-item]").forEach((button) => {
     button.addEventListener("click", () => {
-      const itemId = button.getAttribute("data-add-item");
+      const itemId = button.dataset.addItem;
+      if (!itemsById.has(itemId)) {
+        return;
+      }
+
       state.cart = addItem(state.cart, itemId);
       state.orderPlaced = false;
       render();
@@ -149,8 +133,12 @@ function bindEvents() {
 
   document.querySelectorAll("[data-quantity-action]").forEach((button) => {
     button.addEventListener("click", () => {
-      const itemId = button.getAttribute("data-item-id");
-      const action = button.getAttribute("data-quantity-action");
+      const itemId = button.dataset.itemId;
+      const action = button.dataset.quantityAction;
+      if (!itemsById.has(itemId) || !["increase", "decrease"].includes(action)) {
+        return;
+      }
+
       const nextQuantity = (state.cart[itemId] ?? 0) + (action === "increase" ? 1 : -1);
       state.cart = setItemQuantity(state.cart, itemId, nextQuantity);
       state.orderPlaced = false;
@@ -163,8 +151,8 @@ function handleFilterChange(event) {
   const formData = new FormData(event.currentTarget);
   state.filters = {
     query: String(formData.get("query") ?? ""),
-    category: String(formData.get("category") ?? "all"),
-    diet: String(formData.get("diet") ?? "all"),
+    category: sanitizeCategory(formData.get("category")),
+    diet: sanitizeDiet(formData.get("diet")),
   };
   render();
 }
@@ -178,20 +166,72 @@ function handleCheckoutSubmit(event) {
     phone: String(formData.get("phone") ?? ""),
     address: String(formData.get("address") ?? ""),
     city: String(formData.get("city") ?? ""),
-    paymentMethod: String(formData.get("paymentMethod") ?? "card"),
+    paymentMethod: sanitizePaymentMethod(formData.get("paymentMethod")),
     notes: String(formData.get("notes") ?? ""),
   };
   state.orderPlaced = true;
   render();
 }
 
-function escapeHtml(value) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function buildFilterForm() {
+  const queryInput = createElement("input", {
+    attrs: {
+      type: "search",
+      name: "query",
+      placeholder: "Search burgers, coffee, nuggets...",
+    },
+    props: { value: state.filters.query },
+  });
+
+  const categorySelect = createElement("select", {
+    attrs: { name: "category" },
+  });
+  categories.forEach((category) => {
+    categorySelect.append(createElement("option", { attrs: { value: category.id }, text: category.label }));
+  });
+  categorySelect.value = state.filters.category;
+
+  const dietSelect = createElement("select", {
+    attrs: { name: "diet" },
+  });
+  [
+    ["all", "All diets"],
+    ["veg", "Veg"],
+    ["non-veg", "Non-veg"],
+  ].forEach(([value, label]) => {
+    dietSelect.append(createElement("option", { attrs: { value }, text: label }));
+  });
+  dietSelect.value = state.filters.diet;
+
+  return createElement("form", { className: "filters", dataset: { filterForm: "" } }, [
+    createElement("label", { className: "filters__search" }, [
+      createElement("span", { className: "visually-hidden", text: "Search menu items" }),
+      queryInput,
+    ]),
+    createElement("label", {}, [
+      createElement("span", { className: "visually-hidden", text: "Filter by category" }),
+      categorySelect,
+    ]),
+    createElement("label", {}, [
+      createElement("span", { className: "visually-hidden", text: "Filter by diet" }),
+      dietSelect,
+    ]),
+  ]);
+}
+
+function sanitizeCategory(value) {
+  const category = String(value ?? "all");
+  return categoriesById.has(category) ? category : "all";
+}
+
+function sanitizeDiet(value) {
+  const diet = String(value ?? "all");
+  return ["all", "veg", "non-veg"].includes(diet) ? diet : "all";
+}
+
+function sanitizePaymentMethod(value) {
+  const paymentMethod = String(value ?? "card");
+  return ["card", "cash", "wallet"].includes(paymentMethod) ? paymentMethod : "card";
 }
 
 render();
