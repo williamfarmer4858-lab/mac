@@ -1,0 +1,14 @@
+{
+  "name": "mac",
+  "version": "1.0.0",
+  "description": "McDelivery-style UAE ordering demo",
+  "scripts": {
+    "dev": "node scripts/dev-server.js",
+    "build": "node scripts/build.js",
+    "test": "node --test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module"
+}
